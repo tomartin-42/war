@@ -1,4 +1,4 @@
-%include "inc/pestilence.inc"
+%include "inc/war.inc"
 
 default rel
 

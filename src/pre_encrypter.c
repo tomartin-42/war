@@ -16,7 +16,7 @@
 #include <sys/stat.h>
 
 // Calculos
-// readelf -S pestilence
+// readelf -S war
 //
 // [Nr] Nombre            Tipo             Dirección         Despl
 //      Tamaño            TamEnt           Opts   Enl   Info  Alin
@@ -28,7 +28,7 @@
 // Para la section_offset = Despl = (0x00001000)
 // Para la section_va = Dirección = (0x0000000000401000)
 // Para la symbol_va
-// nm -S pestilence | grep fn_name
+// nm -S war | grep fn_name
 //
 // [...]
 // 0000000000401002 t directory_name_isdigit
@@ -38,7 +38,7 @@
 // file_offset = 0x00001000 + (0x0401002 - 0x0401000)
 //
 // Para el size
-// nm -S pestilence| grep directory_name_isdigit
+// nm -S war| grep directory_name_isdigit
 // 0000000000401002 t directory_name_isdigit
 // 000000000040100a t directory_name_isdigit.bucle
 // 0000000000401025 t directory_name_isdigit.directory_name_isdigit_end
@@ -64,7 +64,7 @@ void xor_cipher(uint8_t *buf, size_t size, uint8_t *key, size_t offset,
 
 int main(int argc, char **argv) {
   uint8_t key[8] = "p3st1l3!";
-  int fd = open("pestilence", O_RDWR);
+  int fd = open("war", O_RDWR);
   uint8_t buf[1024];
   Elf64_Ehdr *ehdr;
   Elf64_Phdr *phdr;

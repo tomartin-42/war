@@ -1,6 +1,6 @@
 #!/bin/bash
 
-program_name="pestilence"
+program_name="war"
 trace="Pestilence version 1.0 (c)oded by tomartin & carce-bo"
 declare -a test_dirs=( /tmp/test{,2,3} )
 
