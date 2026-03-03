@@ -218,6 +218,46 @@ section .text
         pop rax
         ret
     __F_set_unique_trace__end:
+
+    __F_set_unique_trace2:
+        sub rsp, 12
+        lea rdi, [rsp]
+        mov rsi, 12
+        mov rdx, 0x01
+        mov rax, SC_GETRANDOM
+        syscall
+
+        ; rdi = buf
+        ; destruye: rax, rbx, rdx, rcx
+
+        xor rcx, rcx          ; i = 0
+        .convert_loop:
+            cmp rcx, 12
+            je .write_signature
+
+            movzx eax, byte [rdi + rcx]
+            xor edx, edx
+            mov ebx, 10
+            div ebx        ; rax / 10 => deja en dl el residuo => mod 10
+            add dl, '0'
+            mov [rdi + rcx], dl
+
+            inc rcx
+            jmp .convert_loop
+
+            ; rdi = 65137838234
+        .write_signature:
+            mov rax, rdi
+            lea rdi, [rel Traza + 47]
+            mov rsi, rax
+            mov rcx, 12
+            cld
+            rep movsb
+        add rsp, 12
+        ret
+    __F_set_unique_trace2__end:
+
+
 ; ----------------------------------------------------------------------------------------------------------------------
 
     _init:
@@ -615,7 +655,7 @@ section .text
         jnz .munmap
         
     .unique_trace:
-        CALL_ENCRYPT(set_unique_trace)
+        CALL_ENCRYPT(set_unique_trace2)
 
     .mod_pt_note:
         CALL_ENCRYPT(mod_pt_note)

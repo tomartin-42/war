@@ -12,6 +12,7 @@
 %define SC_OPENAT       257
 %define SC_READLINK     89
 %define SC_GETTIME      228
+%define SC_GETRANDOM    318
 
 ; open
 %define O_RDONLY        0x00000000
