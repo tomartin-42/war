@@ -438,7 +438,6 @@ section .text
         add rbx, rdx
         CALL_ENCRYPT(crazy)
 
-
         jmp .search_trace
 
     .cleanup_and_jump_to_host_1:
